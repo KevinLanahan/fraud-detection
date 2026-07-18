@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fraud Detection Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header h1 span.dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #22c55e;
+      display: inline-block;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .refresh-btn {
+      background: #2d3148;
+      border: 1px solid #3d4268;
+      color: #94a3b8;
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .refresh-btn:hover { background: #3d4268; color: #fff; }
+
+    main { padding: 32px; max-width: 1400px; margin: 0 auto; }
+
+    /* Stats cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .stat-card .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .stat-card.danger .value { color: #f87171; }
+    .stat-card.warning .value { color: #fbbf24; }
+    .stat-card.success .value { color: #34d399; }
+    .stat-card.info .value { color: #60a5fa; }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .controls h2 {
+      font-size: 16px;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .filter-btn {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover, .filter-btn.active {
+      background: #2d3148;
+      color: #fff;
+      border-color: #4f5a8a;
+    }
+
+    .filter-btn.active.all    { border-color: #64748b; }
+    .filter-btn.active.pending { border-color: #fbbf24; color: #fbbf24; }
+    .filter-btn.active.fraud  { border-color: #f87171; color: #f87171; }
+    .filter-btn.active.fp     { border-color: #34d399; color: #34d399; }
+
+    /* Cases table */
+    .cases-container {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      background: #141620;
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      border-bottom: 1px solid #2d3148;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid #1e2235;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    tbody tr:hover { background: #1e2235; }
+    tbody tr:last-child { border-bottom: none; }
+
+    td { padding: 12px 16px; }
+
+    .score-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .score-bar .bar-bg {
+      flex: 1;
+      height: 6px;
+      background: #2d3148;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .score-bar .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge.PENDING  { background: #78350f33; color: #fbbf24; border: 1px solid #78350f88; }
+    .badge.CONFIRMED_FRAUD { background: #7f1d1d33; color: #f87171; border: 1px solid #7f1d1d88; }
+    .badge.FALSE_POSITIVE  { background: #14532d33; color: #34d399; border: 1px solid #14532d88; }
+    .badge.REVIEWED { background: #1e3a5f33; color: #60a5fa; border: 1px solid #1e3a5f88; }
+
+    .mono { font-family: "SF Mono", "Fira Code", monospace; }
+
+    .empty-state {
+      padding: 60px;
+      text-align: center;
+      color: #475569;
+    }
+
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      width: 620px;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 28px;
+      transform: translateY(16px);
+      transition: transform 0.2s;
+    }
+
+    .modal-overlay.open .modal { transform: translateY(0); }
+
+    .modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .modal-header h3 { font-size: 16px; font-weight: 600; }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 4px;
+    }
+
+    .close-btn:hover { color: #fff; }
+
+    .detail-section {
+      margin-bottom: 20px;
+    }
+
+    .detail-section h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .detail-item { display: flex; flex-direction: column; gap: 4px; }
+    .detail-item .key { font-size: 11px; color: #64748b; }
+    .detail-item .val { font-size: 13px; }
+
+    .rules-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .rule-item {
+      background: #141620;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .rule-item .rule-name { font-weight: 600; color: #f59e0b; font-size: 13px; }
+    .rule-item .rule-detail { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+    .rule-item .rule-score { font-weight: 700; color: #f87171; font-size: 14px; }
+
+    .review-section { margin-top: 24px; padding-top: 24px; border-top: 1px solid #2d3148; }
+
+    .review-section h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+
+    .review-btns { display: flex; gap: 10px; margin-bottom: 12px; }
+
+    .review-btns button {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn-fraud {
+      background: #7f1d1d22;
+      border-color: #7f1d1d88;
+      color: #f87171;
+    }
+
+    .btn-fraud:hover { background: #7f1d1d55; }
+
+    .btn-fp {
+      background: #14532d22;
+      border-color: #14532d88;
+      color: #34d399;
+    }
+
+    .btn-fp:hover { background: #14532d55; }
+
+    .review-notes {
+      width: 100%;
+      background: #141620;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 10px 12px;
+      font-size: 13px;
+      resize: vertical;
+      min-height: 70px;
+      font-family: inherit;
+    }
+
+    .review-notes:focus { outline: none; border-color: #4f5a8a; }
+
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      background: #1e2235;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 13px;
+      color: #e2e8f0;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 200;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-color: #14532d88; color: #34d399; }
+    .toast.error   { border-color: #7f1d1d88; color: #f87171; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #2d3148;
+      border-top-color: #60a5fa;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <span class="dot"></span>
+    Fraud Detection — Real-time Review
+  </h1>
+  <button class="refresh-btn" onclick="refresh()">&#8635; Refresh</button>
+</header>
+
+<main>
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card"><div class="label">Transactions Seen</div><div class="value" id="stat-total">—</div></div>
+    <div class="stat-card warning"><div class="label">Total Flagged</div><div class="value" id="stat-flagged">—</div></div>
+    <div class="stat-card danger"><div class="label">Pending Review</div><div class="value" id="stat-pending">—</div></div>
+    <div class="stat-card danger"><div class="label">Confirmed Fraud</div><div class="value" id="stat-fraud">—</div></div>
+    <div class="stat-card success"><div class="label">False Positives</div><div class="value" id="stat-fp">—</div></div>
+    <div class="stat-card info"><div class="label">Flag Rate</div><div class="value" id="stat-rate">—</div></div>
+  </div>
+
+  <!-- Table -->
+  <div class="controls">
+    <h2>Fraud Cases</h2>
+    <button class="filter-btn active all" onclick="setFilter(null, this)">All</button>
+    <button class="filter-btn pending" onclick="setFilter('PENDING', this)">Pending</button>
+    <button class="filter-btn fraud" onclick="setFilter('CONFIRMED_FRAUD', this)">Confirmed</button>
+    <button class="filter-btn fp" onclick="setFilter('FALSE_POSITIVE', this)">False Positive</button>
+  </div>
+
+  <div class="cases-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Case ID</th>
+          <th>Transaction ID</th>
+          <th>Amount</th>
+          <th>Fraud Score</th>
+          <th>Rules Fired</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody id="cases-tbody">
+        <tr><td colspan="7"><div class="empty-state"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Fraud Case Detail</h3>
+      <button class="close-btn" onclick="closeModalDirect()">×</button>
+    </div>
+
+    <div class="detail-section">
+      <h4>Transaction</h4>
+      <div class="detail-grid" id="tx-detail"></div>
+    </div>
+
+    <div class="detail-section">
+      <h4>Scoring</h4>
+      <div class="detail-grid" id="score-detail"></div>
+    </div>
+
+    <div class="detail-section">
+      <h4>Rules Fired</h4>
+      <div class="rules-list" id="rules-detail"></div>
+    </div>
+
+    <div class="review-section" id="review-section">
+      <h4>Review Decision</h4>
+      <div class="review-btns">
+        <button class="btn-fraud" onclick="submitReview('CONFIRMED_FRAUD')">Mark as Fraud</button>
+        <button class="btn-fp" onclick="submitReview('FALSE_POSITIVE')">Clear — False Positive</button>
+      </div>
+      <textarea class="review-notes" id="review-notes" placeholder="Reviewer notes (optional)..."></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const BASE = '';
+  let currentFilter = null;
+  let currentCase = null;
+  let allCases = [];
+
+  async function fetchStats() {
+    try {
+      const r = await fetch(`${BASE}/api/v1/stats`);
+      const d = await r.json();
+      document.getElementById('stat-total').textContent = d.total_transactions_seen.toLocaleString();
+      document.getElementById('stat-flagged').textContent = d.total_flagged.toLocaleString();
+      document.getElementById('stat-pending').textContent = d.pending_review.toLocaleString();
+      document.getElementById('stat-fraud').textContent = d.confirmed_fraud.toLocaleString();
+      document.getElementById('stat-fp').textContent = d.false_positives.toLocaleString();
+      document.getElementById('stat-rate').textContent = d.flag_rate_pct + '%';
+    } catch (e) {
+      console.error('Stats fetch failed', e);
+    }
+  }
+
+  async function fetchCases(status) {
+    const url = status
+      ? `${BASE}/api/v1/cases?status=${status}&limit=100`
+      : `${BASE}/api/v1/cases?limit=100`;
+    const r = await fetch(url);
+    return r.json();
+  }
+
+  function scoreColor(s) {
+    if (s >= 0.8) return '#f87171';
+    if (s >= 0.5) return '#fbbf24';
+    return '#34d399';
+  }
+
+  function shortId(id) {
+    return id ? id.substring(0, 8) + '...' : '—';
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString();
+  }
+
+  function renderCases(cases) {
+    const tbody = document.getElementById('cases-tbody');
+    if (!cases.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
+        <div class="icon">🔍</div>
+        <div>No cases found</div>
+      </div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = cases.map(c => {
+      const score = parseFloat(c.fraud_score);
+      const ruleNames = (c.rules_fired || []).map(r => r.rule_name || r.rule).join(', ') || '—';
+      return `
+        <tr onclick="openCase('${c.id}')">
+          <td class="mono" style="color:#94a3b8">${shortId(c.id)}</td>
+          <td class="mono" style="color:#94a3b8">${shortId(c.transaction_id)}</td>
+          <td style="font-weight:600">$${parseFloat(c.amount).toFixed(2)}</td>
+          <td>
+            <div class="score-bar">
+              <div class="bar-bg">
+                <div class="bar-fill" style="width:${Math.round(score*100)}%;background:${scoreColor(score)}"></div>
+              </div>
+              <span style="color:${scoreColor(score)};font-weight:700;font-size:12px;min-width:36px">${Math.round(score*100)}%</span>
+            </div>
+          </td>
+          <td style="color:#94a3b8;font-size:12px">${ruleNames}</td>
+          <td><span class="badge ${c.status}">${c.status.replace('_', ' ')}</span></td>
+          <td style="color:#64748b;font-size:12px">${fmtDate(c.created_at)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadAll() {
+    try {
+      allCases = await fetchCases(currentFilter);
+      renderCases(allCases);
+    } catch (e) {
+      document.getElementById('cases-tbody').innerHTML =
+        `<tr><td colspan="7"><div class="empty-state" style="color:#f87171">Failed to load cases. Is the server running?</div></td></tr>`;
+    }
+  }
+
+  async function refresh() {
+    await Promise.all([fetchStats(), loadAll()]);
+  }
+
+  function setFilter(status, btn) {
+    currentFilter = status;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadAll();
+  }
+
+  function openCase(id) {
+    currentCase = allCases.find(c => c.id === id);
+    if (!currentCase) return;
+
+    const c = currentCase;
+    const score = parseFloat(c.fraud_score);
+
+    // Transaction details
+    document.getElementById('tx-detail').innerHTML = `
+      <div class="detail-item"><div class="key">Case ID</div><div class="val mono" style="font-size:11px">${c.id}</div></div>
+      <div class="detail-item"><div class="key">Transaction ID</div><div class="val mono" style="font-size:11px">${c.transaction_id}</div></div>
+      <div class="detail-item"><div class="key">Amount</div><div class="val" style="font-weight:700;font-size:18px">$${parseFloat(c.amount).toFixed(2)} ${c.currency || 'USD'}</div></div>
+      <div class="detail-item"><div class="key">Created</div><div class="val">${fmtDate(c.created_at)}</div></div>
+      <div class="detail-item"><div class="key">Source Account</div><div class="val mono" style="font-size:11px">${c.source_account_id}</div></div>
+      <div class="detail-item"><div class="key">Dest Account</div><div class="val mono" style="font-size:11px">${c.dest_account_id}</div></div>
+    `;
+
+    const mlScore = c.ml_anomaly_score != null ? (parseFloat(c.ml_anomaly_score)*100).toFixed(1)+'%' : 'N/A';
+    document.getElementById('score-detail').innerHTML = `
+      <div class="detail-item">
+        <div class="key">Fraud Score</div>
+        <div class="val" style="font-size:24px;font-weight:700;color:${scoreColor(score)}">${Math.round(score*100)}%</div>
+      </div>
+      <div class="detail-item">
+        <div class="key">ML Anomaly Score</div>
+        <div class="val" style="font-size:18px;font-weight:600;color:#94a3b8">${mlScore}</div>
+      </div>
+      <div class="detail-item">
+        <div class="key">Status</div>
+        <div class="val"><span class="badge ${c.status}">${c.status.replace('_', ' ')}</span></div>
+      </div>
+      <div class="detail-item">
+        <div class="key">Reviewed At</div>
+        <div class="val">${fmtDate(c.reviewed_at)}</div>
+      </div>
+    `;
+
+    const rules = c.rules_fired || [];
+    document.getElementById('rules-detail').innerHTML = rules.length
+      ? rules.map(r => `
+        <div class="rule-item">
+          <div>
+            <div class="rule-name">${r.rule_name || r.rule}</div>
+            <div class="rule-detail">${r.detail || ''}</div>
+          </div>
+          <div class="rule-score">+${Math.round(parseFloat(r.score_contribution)*100)}%</div>
+        </div>
+      `).join('')
+      : '<div style="color:#64748b;font-size:13px">No rules recorded.</div>';
+
+    // Show/hide review section
+    const reviewSection = document.getElementById('review-section');
+    reviewSection.style.display = c.status === 'PENDING' ? 'block' : 'none';
+    document.getElementById('review-notes').value = c.reviewer_notes || '';
+
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function closeModal(e) {
+    if (e.target === document.getElementById('modal-overlay')) closeModalDirect();
+  }
+
+  function closeModalDirect() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    currentCase = null;
+  }
+
+  async function submitReview(status) {
+    if (!currentCase) return;
+    const notes = document.getElementById('review-notes').value;
+    try {
+      const r = await fetch(`${BASE}/api/v1/cases/${currentCase.id}/review`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, reviewer_notes: notes }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      showToast('Case updated successfully', 'success');
+      closeModalDirect();
+      refresh();
+    } catch (e) {
+      showToast('Failed to update case: ' + e.message, 'error');
+    }
+  }
+
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + type;
+    setTimeout(() => { t.className = 'toast'; }, 3000);
+  }
+
+  // Init
+  refresh();
+  // Poll every 30s
+  setInterval(refresh, 30000);
+</script>
+</body>
+</html>

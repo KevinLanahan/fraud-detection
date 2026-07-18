@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fraud-detection-db
+    environment:
+      POSTGRES_DB: fraud_detection
+      POSTGRES_USER: fraud_user
+      POSTGRES_PASSWORD: fraud_pass
+    ports:
+      - "5435:5432"
+    volumes:
+      - fraud_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraud_user -d fraud_detection"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis is shared with the payment-processor.
+  # If tennis_redis is already running on 6379, point .env to that instead.
+  redis:
+    image: redis:7-alpine
+    container_name: fraud-detection-redis
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: fraud-detection-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # Override localhost URLs with Docker service names
+      DATABASE_URL: postgresql+asyncpg://fraud_user:fraud_pass@postgres:5432/fraud_detection
+      SYNC_DATABASE_URL: postgresql://fraud_user:fraud_pass@postgres:5432/fraud_detection
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./ml:/app/ml   # persist trained model
+
+volumes:
+  fraud_postgres_data:
